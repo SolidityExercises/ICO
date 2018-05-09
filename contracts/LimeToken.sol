@@ -4,22 +4,22 @@ import '../node_modules/zeppelin-solidity/contracts/token/ERC20/MintableToken.so
 
 contract LimeToken is MintableToken {
     string public name = 'LimeChain Exam Token';
-	string public symbol = 'LET';
+    string public symbol = 'LET';
     uint8 public constant decimals = 18;
 
     uint256 public investmentAllowedAfter;
 
     modifier onlyIfInvestmentAllowed() {
-		require(now >= investmentAllowedAfter);
-		_;
-	}
+            require(now >= investmentAllowedAfter);
+	    _;
+    }
 
-	function transfer(address _to, uint256 _value) public onlyIfInvestmentAllowed returns (bool) {
-		return super.transfer(_to, _value);
-	}
+    function transfer(address _to, uint256 _value) public onlyIfInvestmentAllowed returns (bool) {
+	    return super.transfer(_to, _value);
+    }
 
-	function transferFrom(address _from, address _to, uint256 _value) public onlyIfInvestmentAllowed returns (bool) {
-		return super.transferFrom(_from, _to, _value);
+    function transferFrom(address _from, address _to, uint256 _value) public onlyIfInvestmentAllowed returns (bool) {
+	    return super.transferFrom(_from, _to, _value);
     }
 
     constructor (uint256 _investmentAllowedAfter) public {
@@ -30,5 +30,5 @@ contract LimeToken is MintableToken {
 	    investmentAllowedAfter = _investmentAllowedAfter;
 
 	    emit Mint(msg.sender, 1000000);
-	}
+    }
 }
