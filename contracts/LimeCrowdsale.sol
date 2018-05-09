@@ -66,6 +66,7 @@ contract LimeCrowdsale {
         function getTokenAmount(uint256 _weiAmount) public view beforeSaleEnd returns(uint256) {
 		uint256 currentPhaseRate = 100;
 		uint256 nextPhaseRate;
+		uint256 phaseEtherCap;
 
 		uint256 currentPhaseWei;
 		uint256 nextPhaseWei;
