@@ -1,14 +1,14 @@
 pragma solidity ^0.4.21;
 
 import '../node_modules/zeppelin-solidity/contracts/math/SafeMath.sol';
-import './LimeToken.sol';
+import './interfaces/ILimeToken.sol';
 
 contract LimeCrowdsale {
         using SafeMath for uint256;
 
 	event TokensBought(address from, address  to, uint256 amount);
 
-	LimeToken token;
+	ILimeToken public token;
 
 	address public wallet;
 	uint256 public totalWeiRaised;
@@ -21,20 +21,20 @@ contract LimeCrowdsale {
 	uint256 public firstPhaseEnd;
 	uint256 public secondPhaseEnd;
 
-	constructor (address _wallet) public {
+	constructor (address _token, address _wallet) public {
 	        //contract cannot assume the balance is zero upon creation
 		require(address(this).balance == 0);
 		require(_wallet != address(0));
 
 		wallet = _wallet;
-			
+
 		saleStart = now;
 		saleEnd = saleStart + 30 days;
 
 		firstPhaseEnd = saleStart + 7 days;
 		secondPhaseEnd = firstPhaseEnd + 7 days;
 
-		token = new LimeToken(saleEnd);
+		token = ILimeToken(_token);	
 	}
 
         function () external payable {
@@ -54,7 +54,7 @@ contract LimeCrowdsale {
 
 		totalWeiRaised = totalWeiRaised.add(msg.value);
 
-		token.transfer(msg.sender, tokenAmount);
+		token.saleTransfer(msg.sender, tokenAmount);
 
 		emit TokensBought(address(this), msg.sender, msg.value);
 
@@ -68,9 +68,6 @@ contract LimeCrowdsale {
 		uint256 nextPhaseRate;
 		uint256 phaseEtherCap;
 
-		uint256 currentPhaseWei;
-		uint256 nextPhaseWei;
-
 		uint256 tokensAmount;
 
 		if(now <= firstPhaseEnd){
@@ -83,14 +80,14 @@ contract LimeCrowdsale {
 			nextPhaseRate = 150;
 		}
 
-		if(phaseEtherCap < totalWeiRaised){
+		if(phaseEtherCap < totalWeiRaised && now <= secondPhaseEnd){
 		        currentPhaseRate = nextPhaseRate;
 		}
 
 		// case when wei amount should be split and converted between two phases using different rate for each one
 		if(totalWeiRaised < phaseEtherCap && totalWeiRaised + _weiAmount > phaseEtherCap){
-			nextPhaseWei = (totalWeiRaised +  _weiAmount) - phaseEtherCap;
-			currentPhaseWei = phaseEtherCap - totalWeiRaised;
+			uint256 nextPhaseWei = (totalWeiRaised +  _weiAmount) - phaseEtherCap;
+			uint256 currentPhaseWei = phaseEtherCap - totalWeiRaised;
 			tokensAmount = _calculateTokenAmount(currentPhaseWei, currentPhaseRate).add(_calculateTokenAmount(nextPhaseWei, nextPhaseRate));
 		} else {
 			tokensAmount = _calculateTokenAmount(_weiAmount, currentPhaseRate);

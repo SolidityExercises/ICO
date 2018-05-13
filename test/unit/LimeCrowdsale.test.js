@@ -1,165 +1,178 @@
-const LimeCrowdsale = artifacts.require('./fakes/LimeCrowdsaleMock.sol');
+const LimeToken = artifacts.require('../../contracts/LimeToken.sol');
+const LimeCrowdsale = artifacts.require('../../contracts/LimeCrowdsale.sol');
 
 const assertRevert = require('../utils/assertRevert');
 const constants = require('../utils/constants');
 const increaseTime = require('../utils/increaseTime');
 
-contract('LimeCrowdsale', ([owner, other]) => {
-	let sut;
+contract('LimeCrowdsale', ([owner, other, token, wallet]) => {
+	let sut, limeToken;
 
 	before(() => {
 		web3.eth.defaultAccount = owner;
 	});
 
 	beforeEach(async () => {
-		sut = await LimeCrowdsale.new();
+		limeToken = await LimeToken.new(0);
+		sut = await LimeCrowdsale.new(limeToken.address, wallet);
+		limeToken.setTokenSaleContract(sut.address);
 	});
 
-	it('saleStart should be properly set on instantiation', async () => {
-		const tx = await web3.eth.getTransaction(sut.transactionHash);
-		const block = await web3.eth.getBlock(tx.blockNumber);
-		const now = block.timestamp;
+	describe('saleStart should', async () => {
 
-		const result = await sut.saleStart.call();
+		it('be properly set on instantiation', async () => {
+			const tx = await web3.eth.getTransaction(sut.transactionHash);
+			const block = await web3.eth.getBlock(tx.blockNumber);
+			const now = block.timestamp;
 
-		assert.equal(result, now);
+			const result = await sut.saleStart.call();
+
+			assert.equal(result, now);
+		});
 	});
 
-	it('saleEnd should be properly set on instantiation', async () => {
-		const tx = await web3.eth.getTransaction(sut.transactionHash);
-		const block = await web3.eth.getBlock(tx.blockNumber);
-		const now = block.timestamp;
+	describe('saleEnd should', async () => {
 
-		const result = await sut.saleEnd.call();
+		it('be properly set on instantiation', async () => {
+			const tx = await web3.eth.getTransaction(sut.transactionHash);
+			const block = await web3.eth.getBlock(tx.blockNumber);
+			const now = block.timestamp;
 
-		assert.equal(result, now + constants.days(30));
+			const result = await sut.saleEnd.call();
+
+			assert.equal(result, now + constants.days(30));
+		});
 	});
 
-	it('firstPhaseEnd and secondPhaseEnd should be properly set on instantiation', async () => {
-		const tx = await web3.eth.getTransaction(sut.transactionHash);
-		const block = await web3.eth.getBlock(tx.blockNumber);
-		const now = block.timestamp;
+	describe('firstPhaseEnd and secondPhaseEnd should', async () => {
 
-		const firstPhaseEndResult = await sut.firstPhaseEnd.call();
-		const secondPhaseEndResult = await sut.secondPhaseEnd.call();
+		it('be properly set on instantiation', async () => {
+			const tx = await web3.eth.getTransaction(sut.transactionHash);
+			const block = await web3.eth.getBlock(tx.blockNumber);
+			const now = block.timestamp;
 
-		assert.equal(firstPhaseEndResult, now + constants.days(7));
-		assert.equal(secondPhaseEndResult, now + constants.days(7) + constants.days(7));
+			const firstPhaseEndResult = await sut.firstPhaseEnd.call();
+			const secondPhaseEndResult = await sut.secondPhaseEnd.call();
+
+			assert.equal(firstPhaseEndResult, now + constants.days(7));
+			assert.equal(secondPhaseEndResult, now + constants.days(7) + constants.days(7));
+		});
 	});
 
-	it('buyTokens should transfer exact amount of tokens when called during the first phase, when total balance is less than or equal to 10ETH.', async () => {
-		await sut.mint(sut.address, 500e18);
+	describe('buyTokens should', async () => {
 
-		await sut.buyTokens({ value: 1e18 });
+		it('transfer exact amount of tokens when called during the first phase, when total balance is less than or equal to 10ETH.', async () => {
+			limeToken.mintTokens(owner, 500e18);
+			await sut.buyTokens({ value: 1e18, from: other});
 
-		const result = await sut.token.balanceOf.call(owner);
+			const ownerExpectedBalance = await limeToken.balanceOf.call(other);
 
-		assert.equal(result, 500e18);
-	});
+			assert.equal(ownerExpectedBalance.valueOf(), 500e18);
+		});
 
-	it('buyTokens should transfer exact amount of tokens when called during the first phase, when total balance is greater than or equal to 10ETH.', async () => {
+		it('transfer exact amount of tokens when called during the first phase, when total balance is greater than or equal to 10ETH.', async () => {
+			await web3.eth.sendTransaction({ to: sut.address, value: 11e18 });
+			limeToken.mintTokens(owner, 300e18);
 
-		await web3.eth.sendTransaction({ to: sut.address, value: 1e18 });
-		await sut.mint(sut.address, 300e18);
+			await sut.buyTokens({ value: 1e18, from: other });
 
-		await sut.buyTokens({ value: 1e18 });
+			const ownerExpectedBalance = await limeToken.balanceOf.call(other);
 
-		const result = await sut.token.balanceOf.call(owner);
+			assert.equal(ownerExpectedBalance.valueOf(), 300e18);
+		});
 
-		assert.equal(result, 300e18);
-	});
+		it('transfer exact amount of tokens when called during the first phase, when total balance is less than 10ETH before the transfer and more than 10ETH after the transfer', async () => {
+			await web3.eth.sendTransaction({ to: sut.address, value: 8e18 });
+			limeToken.mintTokens(owner, 1600e18);
 
-	it('buyTokens should transfer exact amount of tokens when called during the first phase, when total balance is less than 10ETH before the transfer and more than 10ETH after the transfer', async () => {
-		await web3.eth.sendTransaction({ to: sut.address, value: 8e18 });
-		await sut.mint(sut.address, 1600e18);
+			await sut.buyTokens({ value: 4e18, from: other });
 
-		await sut.buyTokens({ value: 4e18 });
+			const ownerExpectedBalance = await limeToken.balanceOf.call(other);
 
-		const result = await sut.token.balanceOf.call(owner);
+			assert.equal(ownerExpectedBalance.valueOf(), 1600e18);
+		});
 
-		assert.equal(result, 1600e18);
-	});
+		it('transfer exact amount of tokens when called during the second phase, when total balance is less than or equal to 30ETH.', async () => {
+			limeToken.mintTokens(owner, 400e18);
+			await increaseTime(constants.days(7+1));
 
-	it('buyTokens should transfer exact amount of tokens when called during the second phase, when total balance is less than or equal to 30ETH.', async () => {
-		await sut.mint(sut.address, 400e18);
-		await increaseTime(constants.days(7));
+			await sut.buyTokens({ value: 2e18, from: other });
 
-		await sut.buyTokens({ value: 2e18 });
+			const ownerExpectedBalance = await limeToken.balanceOf.call(other);
 
-		const result = await sut.token.balanceOf.call(owner);
+			assert.equal(ownerExpectedBalance.valueOf(), 400e18);
+		});
 
-		assert.equal(result, 400e18);
-	});
+		it('transfer exact amount tokens when called during the second phase, when contract balance is greater than or equal to 30ETH.', async () => {
+			await web3.eth.sendTransaction({ to: sut.address, value: 35e18 });
+			limeToken.mintTokens(owner, 150e18);
+			await increaseTime(constants.days(7+1));
 
-	it('buyTokens should transfer exact amount tokens when called during the second phase, when contract balance is greater than or equal to 30ETH.', async () => {
-		await web3.eth.sendTransaction({ to: sut.address, value: 35e18 });
-		await sut.mint(sut.address, 150e18);
-		await increaseTime(constants.days(7));
+			await sut.buyTokens({ value: 1e18, from: other });
 
-		await sut.buyTokens({ value: 1e18 });
+			const ownerExpectedBalance = await limeToken.balanceOf.call(other);
 
-		const result = await sut.token.balanceOf.call(owner);
+			assert.equal(ownerExpectedBalance.valueOf(), 150e18);
+		});
 
-		assert.equal(result, 150e18);
-	});
+		it('transfer exact amount tokens when called during the second phase, when total balance is less than 30ETH before the transfer and more than 30ETH after the transfer', async () => {
+			await web3.eth.sendTransaction({ to: sut.address, value: 28e18 });
+			limeToken.mintTokens(owner, 700e18);
+			await increaseTime(constants.days(7+1));
 
-	it('buyTokens should transfer exact amount tokens when called during the second phase, when total balance is less than 30ETH before the transfer and more than 30ETH after the transfer', async () => {
-		await web3.eth.sendTransaction({ to: sut.address, value: 28e18 });
-		await sut.mint(sut.address, 700e18);
-		await increaseTime(constants.days(7));
+			await sut.buyTokens({ value: 4e18, from: other });
 
-		await sut.buyTokens({ value: 4e18 });
+			const ownerExpectedBalance = await limeToken.balanceOf.call(other);
 
-		const result = await sut.token.balanceOf.call(owner);
+			assert.equal(ownerExpectedBalance.valueOf(), 700e18);
+		});
 
-		assert.equal(result, 700e18);
-	});
+		it('transfer exact amount tokens when called during the third phase', async () => {
+			limeToken.mintTokens(owner, 100e18);
+			await increaseTime(constants.days(15));
 
-	it('buyTokens should transfer exact amount tokens when called during the third phase', async () => {
-		await sut.mint(sut.address, 100e18);
-		await increaseTime(constants.days(15));
+			await sut.buyTokens({ value: 1e18, from: other });
 
-		await sut.buyTokens({ value: 1e18 });
+			const ownerExpectedBalance = await limeToken.balanceOf.call(other);
 
-		const result = await sut.token.balanceOf.call(owner);
+			assert.equal(ownerExpectedBalance.valueOf(), 100e18);
+		});
 
-		assert.equal(result, 100e18);
-	});
+		it('decrease the token balance with exact amount bought', async () => {
+			limeToken.mintTokens(owner, 542e18);
 
-	it('buyTokens should decrease the token balance with exact amount bought', async () => {
-		await sut.mint(sut.address, 542e18);
+			await sut.buyTokens({ value: 1e18, from: other });
 
-		await sut.buyTokens({ value: 1e18 });
+			const ownerExpectedBalance = await limeToken.balanceOf.call(owner);
 
-		const result = await sut.balanceOf.call(sut.address);
+			assert.equal(ownerExpectedBalance.valueOf(), 42e18);
+		});
 
-		assert.equal(result, 42e18);
-	});
+		it('increase the sender token balance with exact amount', async () => {
+			const oldBalance = await limeToken.balanceOf.call(other);
+			limeToken.mintTokens(owner, 500e18);
 
-	it('buyTokens should increase the sender token balance with exact amount', async () => {
-		const oldBalance = await sut.balanceOf.call(owner);
-		await sut.mint(sut.address, 500e18);
+			await sut.buyTokens({ value: 1e18, from: other});
 
-		await sut.buyTokens({ value: 1e18 });
+			const newBalance = await limeToken.balanceOf.call(other);
 
-		const newBalance = await sut.token.balanceOf.call(owner);
+			assert.equal(oldBalance, 0);
+			assert.equal(newBalance, 500e18);
+		});
 
-		assert.equal(oldBalance, 0);
-		assert.equal(newBalance, 500e18);
-	});
+		it('revert when the contract does not have enough balance', async () => {
+			const result = sut.buyTokens({ value: 1e18, from: other });
 
-	it('buyTokens should revert when the contract does not have enough balance', async () => {
-		const result = sut.buyTokens({ value: 1e18 });
+			await assertRevert(result);
+		});
 
-		await assertRevert(result);
-	});
+		it('revert when called after the token sale end', async () => {
+			limeToken.mintTokens(owner, 500e18);
+			await increaseTime(constants.days(31));
 
-	it('buyTokens should revert when called after the token sale end', async () => {
-		await sut.mint(sut.address, 500e18);
-		await increaseTime(constants.days(31));
+			const result = sut.buyTokens({ value: 1e18, from: other });
 
-		const result = sut.buyTokens({ value: 1e18 });
-
-		await assertRevert(result);
-	});
+			await assertRevert(result);
+		});
+	});	
 });

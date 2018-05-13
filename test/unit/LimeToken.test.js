@@ -1,9 +1,10 @@
-const LimeToken = artifacts.require('./fakes/LimeTokenMock.sol');
+const LimeToken = artifacts.require('../../contracts/LimeToken.sol');
 
 const assertRevert = require('../utils/assertRevert');
 const constants = require('../utils/constants');
+const increaseTime = require('../utils/increaseTime');
 
-contract('LimeTokenTest', ([owner, other]) => {
+contract('LimeToken', ([owner, other]) => {
 	let sut;
 
 	before(() => {
@@ -11,85 +12,95 @@ contract('LimeTokenTest', ([owner, other]) => {
 	});
 
 	beforeEach(async () => {
-		sut = await LimeToken.new(5, {from: owner});
+		sut = await LimeToken.new(100);
 	});
 
-	it('name Should be properly set on instantiation', async () => {
-		const result = await sut.name.call();
+	describe('name should', async () => {
 
-		assert.equal(result, 'LimeChain Exam Token');
+		it('be properly set on instantiation', async () => {
+			const result = await sut.name.call();
+
+			assert.equal(result, 'LimeChain Exam Token');
+		});
 	});
 
-	it('symbol Should be properly set on instantiation', async () => {
-		const result = await sut.symbol.call();
+	describe('symbol should', async () => {
 
-		assert.equal(result, 'LET');
+		it('be properly set on instantiation', async () => {
+			const result = await sut.symbol.call();
+
+			assert.equal(result, 'LET');
+		});
 	});
 
-	it('decimals Should be properly set on instantiation', async () => {
-		const result = await sut.decimals.call();
+	describe('decimals should', async () => {
 
-		assert.equal(result, 18);
+		it('be properly set on instantiation', async () => {
+			const result = await sut.decimals.call();
+
+			assert.equal(result, 18);
+		});
 	});
 
-	it('totalSupply Should be properly set on instantiation', async () => {
-		const defaultTotalSupply = 1000000;
+	describe('totalSupply should', async () => {
 
-		const result = await sut.totalSupply.call();
+		it('be properly set on instantiation', async () => {
+			const defaultTotalSupply = 100e18;
 
-		assert.equal(result, defaultTotalSupply);
+			const result = await sut.totalSupply.call();
+
+			assert.equal(result, defaultTotalSupply);
+		});
 	});
 
-	it('investmentAllowedAfter Should be properly set on instantiation', async () => {
-		const tx = await web3.eth.getTransaction(sut.transactionHash);
-		const block = await web3.eth.getBlock(tx.blockNumber);
-		const now = block.timestamp;
+	describe('transferAllowedAfter should', async () => {
 
-		const result = await sut.investmentAllowedAfter.call();
+		it('be properly set on instantiation', async () => {
+			const tx = await web3.eth.getTransaction(sut.transactionHash);
+			const block = await web3.eth.getBlock(tx.blockNumber);
+			const now = block.timestamp;
 
-		assert.equal(result, now + constants.days(30));
+			const result = await sut.transferAllowedAfter.call();
+
+			assert.equal(result, now + constants.days(30));
+		});
 	});
 
-	it('transfer Should revert when invoked during the token sale', async () => {
-		const transferValue = 100;
-		await sut.mint(owner, transferValue);
+	describe('transfer should', async () => {
 
-		const result = sut.transfer(other, transferValue);
+		it('revert when invoked during the token sale', async () => {
+			const transferValue = 100;
 
-		await assertRevert(result);
+			const result = sut.transfer(other, transferValue);
+
+			await assertRevert(result);
+		});
+
+		it('not revert when invoked after the token sale end', async () => {
+			const transferValue = 100;
+
+			await increaseTime(constants.days(30 + 1));
+
+			await sut.transfer(other, transferValue);
+
+			const result = await sut.balanceOf.call(other);
+
+			assert.equal(result, transferValue);
+		});
 	});
 
-	it('transfer Should not revert when invoked after the token sale end', async () => {
-		const transferValue = 100;
-		await sut.mint(owner, transferValue);
-		await increaseTime(constants.days(30));
+	describe('transferFrom should', async () => {
 
-		await sut.transfer(other, transferValue);
+		it('revert when invoked during the token sale', async () => {
+			const transferValue = 100;
+		
+			await sut.approve(other, transferValue);
 
-		const result = await sut.balanceOf.call(other);
+			await increaseTime(constants.days(30 + 1));
 
-		assert.equal(result, transferValue);
-	});
+			const result = sut.transferFrom(owner, other, transferValue, { from: other });
 
-	it('transferFrom Should revert when invoked during the token sale', async () => {
-		const transferValue = 100;
-		await sut.mint(owner, transferValue);
-		await sut.approve(other, transferValue);
-
-		const result = sut.transferFrom(owner, other, transferValue, { from: other });
-
-		await assertRevert(result);
-	});
-
-	it('transferFrom Should not revert when invoked after the token sale end', async () => {
-		const transferValue = 100;
-		await sut.mint(owner, transferValue);
-		await sut.approve(other, transferValue);
-		await increaseTime(constants.days(30));
-
-		await sut.transferFrom(owner, other, transferValue, { from: other });
-		const result = await sut.balanceOf.call(other);
-
-		assert.equal(result, transferValue);
+			await assertRevert(result);
+		});
 	});
 });
